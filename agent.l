@@ -1,22 +1,59 @@
 
+(setq *Server-Port 12321)
+(setq *Server-Sock NIL)
+
+
 # Server
+(de _run-client-task (Sock Adr)
+   (in Sock
+      (if (rd)
+         (let (Req @)
+            (_log "[server] (Client Ip @1 Sock @2) (Req . @3)" Adr Sock @)
+            (out Sock (pr (eval Req))) )
+         (_log "[server] (Client Ip @1 Sock @2) closed." Adr Sock)
+         (task Sock)           #unregister client handler
+         (close Sock) ) ) )
+
 (de start-server ()
-   (task (port 12321)                     # Background server task
-      (let? Sock (accept @)
-         (unless (fork)                   # Handle request in child process
-            (in Sock
-               (while (rd)                # Handle requests
-                  (out Sock
-                     (pr (eval @)) ) ) )  # Evaluate and send reply
-            (bye) )                       # Exit child process
-         (close Sock) ) ) )               # Close socket in parent process
+   (if *Server-Sock
+      (_log "[server] (Server Sock @1) already listen!" *Server-Sock)
+      (prog1
+         (_log "[server] (Server Port @1) starting..." *Server-Port)
+         (let? Server (port *Server-Port)
+            (setq *Server-Sock Server)
+            (task Server
+               (when (accept @)
+                  (task @        # start background task client handler
+                     Adr *Adr
+                     (_run-client-task @ Adr) ) ) ) )
+         (_log "[server] (Server Sock @1) listen..." *Server-Sock) ) ) )
+
+(de stop-server ()
+   (ifn *Server-Sock
+      (_log "[server] (Server) not running")
+      (task *Server-Sock)  # unregister server sock
+      (close *Server-Sock)
+      (_log "[server] (Server Sock @1) stopped." *Server-Sock)
+      (setq *Server-Sock NIL) ) )
 
 
 # Client
 (de client ()
-   (let? Sock (connect "localhost" 12321)
-      (out Sock (pr '*Pid))               # Query PID from server
-      (println 'PID (in Sock (rd)))       # Receive and print reply
-      (out Sock (pr '(* 3 4)))            # Request some calculation
-      (println 'Result (in Sock (rd)))    # Print result
-      (close Sock) ) )                      # Close connection to server
+   (let? Sock (connect "localhost" *Server-Port)
+      (_log "[client] (Client Sock @1) connected to Server." Sock)
+      (out Sock (pr '*Pid))
+      (task Sock
+         (println 'Reply 'PID (in @ (rd)))
+         (task @)
+         (close @)
+         (_log "[client] (Client Sock @1) closed." Sock) ) ) )
+
+
+# Debug
+(de _debug ()
+   (trace 'start-server)
+   (trace 'client) )
+
+(de _log (F . @)
+   (prinl (tim$ (time) T) " DD - " (apply text (rest) F))
+   nil )
