@@ -48,6 +48,27 @@
          (close @)
          (_log "[client] (Client Sock @1) closed." Sock) ) ) )
 
+(de client2 ()
+   (let? Sock (connect "localhost" *Server-Port)
+      (_log "[client2] (Client2 Sock @1) connected to Server." Sock)
+
+      # start first task
+      (out Sock (pr '*Pid))
+      (task Sock
+         Sock Sock  # capture socket
+         (println 'Reply2 'PID (in Sock (rd)))
+         (task Sock)
+
+         # start second task
+         (out Sock (pr '(+ 12 23)))
+         (task Sock
+            Sock Sock # capture socket
+            (println 'Reply2 'PLUS (in Sock (rd)))
+            (task Sock)
+            (close Sock)
+            (_log "[client2] (Client Sock @1) closed." Sock) ) ) ) )
+
+
 
 # Debug
 (de _debug ()
